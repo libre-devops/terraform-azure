@@ -231,6 +231,10 @@ inputs:
     description: "Resource group of the key vault to allow-list."
     required: false
     default: ""
+  firewall-propagation-seconds:
+    description: "Seconds to wait after opening a firewall before Terraform runs, so the rule has propagated. Set to 0 to skip."
+    required: false
+    default: "30"
 
   # ---------- Behaviour ---------------------------------------------------
   delete-plan-files:
@@ -337,6 +341,7 @@ runs:
           -FirewallStorageResourceGroup               '${{ inputs.firewall-storage-resource-group }}' `
           -FirewallKeyVaultName                       '${{ inputs.firewall-key-vault-name }}' `
           -FirewallKeyVaultResourceGroup              '${{ inputs.firewall-key-vault-resource-group }}' `
+          -FirewallPropagationSeconds                 '${{ inputs.firewall-propagation-seconds }}' `
           -DeletePlanFiles                            '${{ inputs.delete-plan-files }}' `
           -DebugMode                                  '${{ inputs.debug-mode }}' `
           -LogLevel                                   '${{ inputs.log-level }}' `

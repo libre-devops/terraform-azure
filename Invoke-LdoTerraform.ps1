@@ -70,6 +70,7 @@ param (
     [string]$FirewallStorageResourceGroup = "",
     [string]$FirewallKeyVaultName = "",
     [string]$FirewallKeyVaultResourceGroup = "",
+    [string]$FirewallPropagationSeconds = "30",
 
     [string]$DeletePlanFiles = "true",
     [string]$DebugMode = "false",
@@ -245,6 +246,14 @@ try {
         else {
             Write-LdoLog -Level WARN -Message "add-current-ip-to-key-vault-before-tf-run is true but the key vault name or resource group was not supplied; skipping the key vault firewall step." -InvocationName $invocation
         }
+    }
+
+    # Azure firewall rule changes are not effective immediately. Wait for them to propagate before
+    # Terraform touches the backend, or the first data-plane call fails with a 403.
+    $propagationSeconds = [int]$FirewallPropagationSeconds
+    if (($addedStorageIp -or $addedKvIp) -and ($propagationSeconds -gt 0)) {
+        Write-LdoLog -Level INFO -Message "Waiting ${propagationSeconds}s for firewall rules to propagate." -InvocationName $invocation
+        Start-Sleep -Seconds $propagationSeconds
     }
 
     # --- Resolve stacks, reversing order for destroys -------------------------------------
