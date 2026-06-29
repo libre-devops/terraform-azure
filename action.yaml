@@ -1,0 +1,343 @@
+name: "Libre DevOps Terraform for Azure"
+description: "Run the Terraform lifecycle (init, validate, tflint, trivy, plan, apply, destroy) against Azure via Invoke-LdoTerraform.ps1."
+author: "Craig Thacker (craig@craigthacker.dev)"
+branding:
+  icon: terminal
+  color: purple
+
+inputs:
+  # ---------- What to run -------------------------------------------------
+  terraform-code-location:
+    description: "Path to the Terraform code root that holds the stack subfolders."
+    required: false
+    default: "examples"
+  terraform-stack-to-run-json:
+    description: 'JSON array of stacks to run by subfolder name, or ["all"] for every numbered stack (for example 01-network) in numeric order.'
+    required: false
+    default: '["complete"]'
+  terraform-workspace:
+    description: "Terraform workspace to select or create, the built-in way to separate environments within a stack's state. Set it to the environment (for example dev, prd). Empty to stay on the default workspace."
+    required: false
+    default: "dev"
+
+  run-terraform-init:
+    description: "Run terraform init."
+    required: false
+    default: "true"
+  run-terraform-validate:
+    description: "Run terraform validate."
+    required: false
+    default: "true"
+  run-terraform-plan:
+    description: "Run terraform plan."
+    required: false
+    default: "true"
+  run-terraform-plan-destroy:
+    description: "Run terraform plan -destroy."
+    required: false
+    default: "false"
+  run-terraform-apply:
+    description: "Run terraform apply of the saved plan."
+    required: false
+    default: "false"
+  run-terraform-destroy:
+    description: "Run terraform destroy of the saved destroy plan."
+    required: false
+    default: "false"
+
+  # ---------- Extra args (JSON arrays) ------------------------------------
+  terraform-init-extra-args-json:
+    description: "Extra args for init (JSON array)."
+    required: false
+    default: '["-reconfigure", "-upgrade"]'
+  terraform-plan-extra-args-json:
+    description: "Extra args for plan (JSON array)."
+    required: false
+    default: "[]"
+  terraform-plan-destroy-extra-args-json:
+    description: "Extra args for plan -destroy (JSON array)."
+    required: false
+    default: "[]"
+  terraform-apply-extra-args-json:
+    description: "Extra args for apply (JSON array)."
+    required: false
+    default: "[]"
+  terraform-destroy-extra-args-json:
+    description: "Extra args for destroy (JSON array)."
+    required: false
+    default: "[]"
+
+  # ---------- Backend key -------------------------------------------------
+  terraform-init-create-backend-state-file-name:
+    description: "Create a per-stack backend state key on init."
+    required: false
+    default: "true"
+  terraform-init-create-backend-state-file-prefix:
+    description: "Backend state key prefix."
+    required: false
+    default: ""
+  terraform-init-create-backend-state-file-suffix:
+    description: "Backend state key suffix."
+    required: false
+    default: ""
+  terraform-plan-file-name:
+    description: "Plan file name."
+    required: false
+    default: "tfplan.plan"
+  terraform-destroy-plan-file-name:
+    description: "Destroy plan file name."
+    required: false
+    default: "tfplan-destroy.plan"
+
+  create-terraform-workspace:
+    description: "Create or select the Terraform workspace."
+    required: false
+    default: "true"
+
+  # ---------- Terraform install ------------------------------------------
+  install-tenv-terraform:
+    description: "Install Terraform via tenv."
+    required: false
+    default: "true"
+  terraform-version:
+    description: 'Terraform version, e.g. "1.9.8" or "latest".'
+    required: false
+    default: "latest"
+
+  # ---------- Linting and scanning ---------------------------------------
+  run-tflint:
+    description: "Run tflint against each stack."
+    required: false
+    default: "true"
+  install-tflint:
+    description: "Install tflint."
+    required: false
+    default: "true"
+  tflint-config-file:
+    description: "Path to a .tflint.hcl config file. Empty to use the stack default."
+    required: false
+    default: ""
+  tflint-softfail:
+    description: "Soft-fail tflint findings (log instead of failing)."
+    required: false
+    default: "false"
+  tflint-extra-args-json:
+    description: "Extra args for tflint (JSON array)."
+    required: false
+    default: "[]"
+
+  run-trivy:
+    description: "Run a trivy config scan against each stack."
+    required: false
+    default: "true"
+  install-trivy:
+    description: "Install trivy."
+    required: false
+    default: "true"
+  trivy-skip-checks:
+    description: "Comma-separated trivy check ids to skip."
+    required: false
+    default: ""
+  trivy-softfail:
+    description: "Soft-fail trivy findings (log instead of failing)."
+    required: false
+    default: "false"
+  trivy-extra-args-json:
+    description: "Extra args for trivy (JSON array)."
+    required: false
+    default: "[]"
+
+  # ---------- Azure authentication ---------------------------------------
+  use-azure-service-connection:
+    description: "Authenticate to Azure with azure/login in this action."
+    required: false
+    default: "true"
+  use-azure-oidc-login:
+    description: "Authenticate via OIDC (federated)."
+    required: false
+    default: "true"
+  use-azure-client-secret-login:
+    description: "Authenticate via client secret."
+    required: false
+    default: "false"
+  use-azure-managed-identity-login:
+    description: "Authenticate via managed identity."
+    required: false
+    default: "false"
+  attempt-azure-login:
+    description: "Have the script perform an in-process az login (instead of azure/login)."
+    required: false
+    default: "false"
+  install-azure-cli:
+    description: "Install the Azure CLI in the script."
+    required: false
+    default: "false"
+  backend-use-azure-ad-auth:
+    description: "Use Entra ID auth for the azurerm backend (ARM_USE_AZUREAD)."
+    required: false
+    default: "true"
+  allow-no-subscriptions:
+    description: "Allow azure/login with no subscriptions."
+    required: false
+    default: "false"
+
+  arm-tenant-id:
+    description: "Azure tenant id."
+    required: false
+    default: ""
+  arm-subscription-id:
+    description: "Azure subscription id."
+    required: false
+    default: ""
+  target-subscription-id:
+    description: "Override subscription id for this run."
+    required: false
+    default: ""
+  arm-client-id:
+    description: "Azure client id of the federated app or service principal."
+    required: false
+    default: ""
+  arm-client-secret:
+    description: "Azure client secret (only for the client-secret flow)."
+    required: false
+    default: ""
+  azure-credentials:
+    description: "Full JSON credentials block for azure/login client-secret auth."
+    required: false
+    default: ""
+
+  # ---------- Firewall allow-listing (open before the run, close in finally) ----------
+  add-current-ip-to-storage-before-tf-run:
+    description: "Add the runner public IP to the named storage account firewall before the run, and always remove it after. Defaults to true because the remote state account is firewalled; supply firewall-storage-account-name and firewall-storage-resource-group (typically from the org secrets set by the tenant bootstrap). If they are not supplied, this step is skipped with a warning."
+    required: false
+    default: "true"
+  add-current-ip-to-key-vault-before-tf-run:
+    description: "Add the runner public IP to the named key vault firewall before the run, and always remove it after."
+    required: false
+    default: "false"
+  firewall-storage-account-name:
+    description: "Storage account name to allow-list (required when add-current-ip-to-storage-before-tf-run is true)."
+    required: false
+    default: ""
+  firewall-storage-resource-group:
+    description: "Resource group of the storage account to allow-list."
+    required: false
+    default: ""
+  firewall-key-vault-name:
+    description: "Key vault name to allow-list (required when add-current-ip-to-key-vault-before-tf-run is true)."
+    required: false
+    default: ""
+  firewall-key-vault-resource-group:
+    description: "Resource group of the key vault to allow-list."
+    required: false
+    default: ""
+
+  # ---------- Behaviour ---------------------------------------------------
+  delete-plan-files:
+    description: "Delete plan files after the run."
+    required: false
+    default: "true"
+  debug-mode:
+    description: "Enable debug logging (TF_LOG=DEBUG and DEBUG log level)."
+    required: false
+    default: "false"
+  log-level:
+    description: "Minimum log level: TRACE, DEBUG, INFO, WARN, ERROR, FATAL."
+    required: false
+    default: "INFO"
+  log-format:
+    description: "Log output format: Json, JsonIndented, or Text."
+    required: false
+    default: "Json"
+
+runs:
+  using: composite
+  steps:
+    - name: Azure Login (OIDC)
+      if: ${{ inputs.use-azure-service-connection == 'true' && inputs.use-azure-oidc-login == 'true' && inputs.attempt-azure-login != 'true' }}
+      uses: azure/login@v2
+      with:
+        client-id: ${{ inputs.arm-client-id }}
+        tenant-id: ${{ inputs.arm-tenant-id }}
+        subscription-id: ${{ inputs.target-subscription-id != '' && inputs.target-subscription-id || inputs.arm-subscription-id }}
+        allow-no-subscriptions: ${{ inputs.allow-no-subscriptions }}
+
+    - name: Azure Login (Client Secret)
+      if: ${{ inputs.use-azure-service-connection == 'true' && inputs.use-azure-client-secret-login == 'true' && inputs.attempt-azure-login != 'true' }}
+      uses: azure/login@v2
+      with:
+        creds: ${{ inputs.azure-credentials }}
+        allow-no-subscriptions: ${{ inputs.allow-no-subscriptions }}
+
+    - name: Azure Login (Managed Identity)
+      if: ${{ inputs.use-azure-service-connection == 'true' && inputs.use-azure-managed-identity-login == 'true' && inputs.attempt-azure-login != 'true' }}
+      uses: azure/login@v2
+      with:
+        auth-type: ManagedIdentity
+        client-id: ${{ inputs.arm-client-id }}
+        tenant-id: ${{ inputs.arm-tenant-id }}
+        subscription-id: ${{ inputs.target-subscription-id != '' && inputs.target-subscription-id || inputs.arm-subscription-id }}
+        allow-no-subscriptions: ${{ inputs.allow-no-subscriptions }}
+
+    - name: Invoke-LdoTerraform.ps1
+      shell: pwsh
+      env:
+        ARM_CLIENT_ID: ${{ inputs.arm-client-id }}
+        ARM_TENANT_ID: ${{ inputs.arm-tenant-id }}
+        ARM_SUBSCRIPTION_ID: ${{ inputs.target-subscription-id != '' && inputs.target-subscription-id || inputs.arm-subscription-id }}
+        ARM_CLIENT_SECRET: ${{ inputs.arm-client-secret }}
+        ARM_USE_OIDC: ${{ inputs.use-azure-oidc-login }}
+        ARM_USE_MSI: ${{ inputs.use-azure-managed-identity-login }}
+        ARM_USE_AZUREAD: ${{ inputs.backend-use-azure-ad-auth }}
+        LDO_SERVICE_NAME: terraform-azure
+        LDO_LOG_LEVEL: ${{ inputs.log-level }}
+        LDO_LOG_FORMAT: ${{ inputs.log-format }}
+      run: |
+        pwsh -NoLogo -NoProfile -File "${{ github.action_path }}/Invoke-LdoTerraform.ps1" `
+          -TerraformCodeLocation                      '${{ inputs.terraform-code-location }}' `
+          -TerraformStackToRunJson                    '${{ inputs.terraform-stack-to-run-json }}' `
+          -TerraformWorkspace                         '${{ inputs.terraform-workspace }}' `
+          -RunTerraformInit                           '${{ inputs.run-terraform-init }}' `
+          -RunTerraformValidate                       '${{ inputs.run-terraform-validate }}' `
+          -RunTerraformPlan                           '${{ inputs.run-terraform-plan }}' `
+          -RunTerraformPlanDestroy                    '${{ inputs.run-terraform-plan-destroy }}' `
+          -RunTerraformApply                          '${{ inputs.run-terraform-apply }}' `
+          -RunTerraformDestroy                        '${{ inputs.run-terraform-destroy }}' `
+          -TerraformInitExtraArgsJson                 '${{ inputs.terraform-init-extra-args-json }}' `
+          -TerraformInitCreateBackendStateFileName    '${{ inputs.terraform-init-create-backend-state-file-name }}' `
+          -TerraformInitCreateBackendStateFilePrefix  '${{ inputs.terraform-init-create-backend-state-file-prefix }}' `
+          -TerraformInitCreateBackendStateFileSuffix  '${{ inputs.terraform-init-create-backend-state-file-suffix }}' `
+          -TerraformPlanExtraArgsJson                 '${{ inputs.terraform-plan-extra-args-json }}' `
+          -TerraformPlanDestroyExtraArgsJson          '${{ inputs.terraform-plan-destroy-extra-args-json }}' `
+          -TerraformApplyExtraArgsJson                '${{ inputs.terraform-apply-extra-args-json }}' `
+          -TerraformDestroyExtraArgsJson              '${{ inputs.terraform-destroy-extra-args-json }}' `
+          -TerraformPlanFileName                      '${{ inputs.terraform-plan-file-name }}' `
+          -TerraformDestroyPlanFileName               '${{ inputs.terraform-destroy-plan-file-name }}' `
+          -InstallTenvTerraform                       '${{ inputs.install-tenv-terraform }}' `
+          -TerraformVersion                           '${{ inputs.terraform-version }}' `
+          -CreateTerraformWorkspace                   '${{ inputs.create-terraform-workspace }}' `
+          -RunTfLint                                  '${{ inputs.run-tflint }}' `
+          -InstallTfLint                              '${{ inputs.install-tflint }}' `
+          -TfLintConfigFile                           '${{ inputs.tflint-config-file }}' `
+          -TfLintSoftFail                             '${{ inputs.tflint-softfail }}' `
+          -TfLintExtraArgsJson                        '${{ inputs.tflint-extra-args-json }}' `
+          -RunTrivy                                   '${{ inputs.run-trivy }}' `
+          -InstallTrivy                               '${{ inputs.install-trivy }}' `
+          -TrivySkipChecks                            '${{ inputs.trivy-skip-checks }}' `
+          -TrivySoftFail                              '${{ inputs.trivy-softfail }}' `
+          -TrivyExtraArgsJson                         '${{ inputs.trivy-extra-args-json }}' `
+          -InstallAzureCli                            '${{ inputs.install-azure-cli }}' `
+          -AttemptAzureLogin                          '${{ inputs.attempt-azure-login }}' `
+          -UseAzureClientSecretLogin                  '${{ inputs.use-azure-client-secret-login }}' `
+          -UseAzureOidcLogin                          '${{ inputs.use-azure-oidc-login }}' `
+          -UseAzureManagedIdentityLogin               '${{ inputs.use-azure-managed-identity-login }}' `
+          -AddCurrentIpToStorageBeforeTfRun           '${{ inputs.add-current-ip-to-storage-before-tf-run }}' `
+          -AddCurrentIpToKeyVaultBeforeTfRun          '${{ inputs.add-current-ip-to-key-vault-before-tf-run }}' `
+          -FirewallStorageAccountName                 '${{ inputs.firewall-storage-account-name }}' `
+          -FirewallStorageResourceGroup               '${{ inputs.firewall-storage-resource-group }}' `
+          -FirewallKeyVaultName                       '${{ inputs.firewall-key-vault-name }}' `
+          -FirewallKeyVaultResourceGroup              '${{ inputs.firewall-key-vault-resource-group }}' `
+          -DeletePlanFiles                            '${{ inputs.delete-plan-files }}' `
+          -DebugMode                                  '${{ inputs.debug-mode }}' `
+          -LogLevel                                   '${{ inputs.log-level }}' `
+          -LogFormat                                  '${{ inputs.log-format }}'

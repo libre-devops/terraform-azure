@@ -50,11 +50,17 @@ jobs:
       - name: Terraform plan
         uses: libre-devops/terraform-azure@v1
         with:
-          terraform-code-location: examples/complete
+          terraform-code-location: examples
+          terraform-stack-to-run-json: '["complete"]'
           run-terraform-plan: true
           arm-client-id: ${{ vars.AZURE_CLIENT_ID }}
           arm-tenant-id: ${{ vars.AZURE_TENANT_ID }}
           arm-subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+          # The remote state account is firewalled. The action opens this runner's IP before the
+          # run and always closes it after (on by default). These come from the org secrets the
+          # tenant bootstrap sets.
+          firewall-storage-account-name: ${{ secrets.TFSTATE_STORAGE_ACCOUNT }}
+          firewall-storage-resource-group: ${{ secrets.TFSTATE_RESOURCE_GROUP }}
 ```
 
 ## Inputs
