@@ -293,18 +293,20 @@ try {
             Invoke-LdoTerraformValidate -CodePath $folder
         }
 
-        # Lint and scan before planning, and fail closed unless soft-fail is set.
+        # Lint and scan before planning, and fail closed unless soft-fail is set. The -SoftFail
+        # switch is added via splatting only when true, which avoids the fragile -SoftFail:$bool
+        # binding form.
         if ($doTfLint) {
-            if ($TfLintConfigFile) {
-                Invoke-LdoTfLint -CodePath $folder -ConfigFile $TfLintConfigFile -SoftFail:$tfLintSoftFail -ExtraArgs $TfLintExtraArgs
-            }
-            else {
-                Invoke-LdoTfLint -CodePath $folder -SoftFail:$tfLintSoftFail -ExtraArgs $TfLintExtraArgs
-            }
+            $tfLintParams = @{ CodePath = $folder; ExtraArgs = $TfLintExtraArgs }
+            if ($TfLintConfigFile) { $tfLintParams.ConfigFile = $TfLintConfigFile }
+            if ($tfLintSoftFail) { $tfLintParams.SoftFail = $true }
+            Invoke-LdoTfLint @tfLintParams
         }
         if ($doTrivy) {
             $trivySkip = if ([string]::IsNullOrWhiteSpace($TrivySkipChecks)) { @() } else { $TrivySkipChecks -split ',' | ForEach-Object { $_.Trim() } }
-            Invoke-LdoTrivy -CodePath $folder -TrivySkipChecks $trivySkip -SoftFail:$trivySoftFail -ExtraArgs $TrivyExtraArgs
+            $trivyParams = @{ CodePath = $folder; TrivySkipChecks = $trivySkip; ExtraArgs = $TrivyExtraArgs }
+            if ($trivySoftFail) { $trivyParams.SoftFail = $true }
+            Invoke-LdoTrivy @trivyParams
         }
 
         if ($doPlan) {

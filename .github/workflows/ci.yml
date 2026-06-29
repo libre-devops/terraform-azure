@@ -102,8 +102,9 @@ jobs:
           firewall-storage-account-name: ${{ secrets.TFSTATE_STORAGE_ACCOUNT }}
           firewall-storage-resource-group: ${{ secrets.TFSTATE_RESOURCE_GROUP }}
 
+      # Runs only if the apply step succeeded, so a failure exits the job rather than chaining
+      # a destroy onto a broken apply.
       - name: Plan-destroy and destroy the minimal example
-        if: always()
         uses: ./
         with:
           terraform-code-location: examples
