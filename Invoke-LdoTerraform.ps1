@@ -293,19 +293,22 @@ try {
             Invoke-LdoTerraformValidate -CodePath $folder
         }
 
-        # Lint and scan before planning, and fail closed unless soft-fail is set. The -SoftFail
-        # switch is added via splatting only when true, which avoids the fragile -SoftFail:$bool
-        # binding form.
+        # Lint and scan before planning, and fail closed unless soft-fail is set. Switches and
+        # array arguments are only added to the splat when set: splatting an empty array binds the
+        # parameter to $null, which then trips ".Count" under Set-StrictMode inside the helper.
         if ($doTfLint) {
-            $tfLintParams = @{ CodePath = $folder; ExtraArgs = $TfLintExtraArgs }
+            $tfLintParams = @{ CodePath = $folder }
             if ($TfLintConfigFile) { $tfLintParams.ConfigFile = $TfLintConfigFile }
             if ($tfLintSoftFail) { $tfLintParams.SoftFail = $true }
+            if ($TfLintExtraArgs.Count -gt 0) { $tfLintParams.ExtraArgs = $TfLintExtraArgs }
             Invoke-LdoTfLint @tfLintParams
         }
         if ($doTrivy) {
             $trivySkip = if ([string]::IsNullOrWhiteSpace($TrivySkipChecks)) { @() } else { $TrivySkipChecks -split ',' | ForEach-Object { $_.Trim() } }
-            $trivyParams = @{ CodePath = $folder; TrivySkipChecks = $trivySkip; ExtraArgs = $TrivyExtraArgs }
+            $trivyParams = @{ CodePath = $folder }
             if ($trivySoftFail) { $trivyParams.SoftFail = $true }
+            if ($trivySkip.Count -gt 0) { $trivyParams.TrivySkipChecks = $trivySkip }
+            if ($TrivyExtraArgs.Count -gt 0) { $trivyParams.ExtraArgs = $TrivyExtraArgs }
             Invoke-LdoTrivy @trivyParams
         }
 
