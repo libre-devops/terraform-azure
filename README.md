@@ -74,6 +74,15 @@ The full input reference is documented below once the interface settles. Key tog
 - An Azure identity federated for OIDC (no stored secrets), with the roles its Terraform needs.
 - Terraform (installed by the action via tenv) and, when scanning, tflint and trivy.
 
+## Developing and releasing
+
+Local development and releases use **PowerShell 7+** and **[`just`](https://github.com/casey/just)**
+(`brew install just`, or `uv tool add rust-just` then `uv run just <recipe>`), since the recipes
+wrap the same [LibreDevOpsHelpers](https://www.powershellgallery.com/packages/LibreDevOpsHelpers)
+module the action runs. `just validate` and `just test` run the checks; to release, bump and
+publish with `just increment-release [patch|minor|major]`, then move the major alias with
+`just force-push-tag v1`.
+
 ## Contributing
 
 Issues and pull requests are welcome. Please read the
