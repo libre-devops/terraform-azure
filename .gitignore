@@ -1,0 +1,27 @@
+# Terraform working files
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+crash.log
+crash.*.log
+
+# Plan output (never commit a plan)
+*.tfplan
+*.plan
+tfplan*
+
+# Local-only and sensitive
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+*.tfvars
+*.tfvars.json
+.terraformrc
+terraform.rc
+
+# OS and editor
+.DS_Store
+.idea/
+.vscode/
+*.log
