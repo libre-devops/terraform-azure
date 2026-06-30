@@ -85,9 +85,9 @@ param (
     # any management lock on them so the apply/destroy is not blocked, and (on an apply only) restores
     # the captured locks in the finally block. The saved plan is applied without a refresh, so the
     # removed-then-restored lock never shows as drift. On a destroy the lock is removed and not put
-    # back (the group is going away). This is the operational mirror of the firewall dance; the rg
-    # module's lock works on its own without it.
-    [string]$RemoveResourceGroupLocksBeforeTfRun = "true",
+    # back (the group is going away). This is the operational mirror of the firewall dance. Off by
+    # default: opt in per run when you actually use resource group locks.
+    [string]$RemoveResourceGroupLocksBeforeTfRun = "false",
 
     [string]$DeletePlanFiles = "true",
     [string]$EnablePrettyPrintOfFindings = "true",

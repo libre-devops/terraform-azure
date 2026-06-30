@@ -262,9 +262,9 @@ inputs:
     default: "30"
 
   remove-resource-group-locks-before-tf-run:
-    description: "Lock-dance: remove any management lock on the plan's resource groups before an apply/destroy so Terraform is not blocked, and restore the captured locks after an apply (not after a destroy). Mirrors the firewall dance."
+    description: "Lock-dance: remove any management lock on the plan's resource groups before an apply/destroy so Terraform is not blocked, and restore the captured locks after an apply (not after a destroy). Mirrors the firewall dance. Off by default; opt in when you use resource group locks."
     required: false
-    default: "true"
+    default: "false"
 
   # ---------- Behaviour ---------------------------------------------------
   delete-plan-files:
