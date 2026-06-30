@@ -261,6 +261,11 @@ inputs:
     required: false
     default: "30"
 
+  remove-resource-group-locks-before-tf-run:
+    description: "Lock-dance: remove any management lock on the plan's resource groups before an apply/destroy so Terraform is not blocked, and restore the captured locks after an apply (not after a destroy). Mirrors the firewall dance."
+    required: false
+    default: "true"
+
   # ---------- Behaviour ---------------------------------------------------
   delete-plan-files:
     description: "Delete plan files after the run."
@@ -381,6 +386,7 @@ runs:
           -FirewallKeyVaultName                       '${{ inputs.firewall-key-vault-name }}' `
           -FirewallKeyVaultResourceGroup              '${{ inputs.firewall-key-vault-resource-group }}' `
           -FirewallPropagationSeconds                 '${{ inputs.firewall-propagation-seconds }}' `
+          -RemoveResourceGroupLocksBeforeTfRun        '${{ inputs.remove-resource-group-locks-before-tf-run }}' `
           -DeletePlanFiles                            '${{ inputs.delete-plan-files }}' `
           -EnablePrettyPrintOfFindings                '${{ inputs.enable-pretty-print-of-findings }}' `
           -ExportGitContext                           '${{ inputs.export-git-context }}' `

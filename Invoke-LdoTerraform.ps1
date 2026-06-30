@@ -80,6 +80,15 @@ param (
     [string]$FirewallKeyVaultResourceGroup = "",
     [string]$FirewallPropagationSeconds = "30",
 
+    # ---------- Resource group management-lock dance (remove for the run, restore after) ----------
+    # When true, after planning the engine finds the resource groups in the plan, captures and removes
+    # any management lock on them so the apply/destroy is not blocked, and (on an apply only) restores
+    # the captured locks in the finally block. The saved plan is applied without a refresh, so the
+    # removed-then-restored lock never shows as drift. On a destroy the lock is removed and not put
+    # back (the group is going away). This is the operational mirror of the firewall dance; the rg
+    # module's lock works on its own without it.
+    [string]$RemoveResourceGroupLocksBeforeTfRun = "true",
+
     [string]$DeletePlanFiles = "true",
     [string]$EnablePrettyPrintOfFindings = "true",
     [string]$ExportGitContext = "true",
@@ -192,6 +201,8 @@ try {
     $doConftest = ConvertTo-LdoBoolean $RunConftest
     $doInstallConftest = ConvertTo-LdoBoolean $InstallConftest
     $doConftestFailOnWarn = ConvertTo-LdoBoolean $ConftestFailOnWarn
+
+    $doLockDance = ConvertTo-LdoBoolean $RemoveResourceGroupLocksBeforeTfRun
 
     $doInstallAzureCli = ConvertTo-LdoBoolean $InstallAzureCli
     $attemptLogin = ConvertTo-LdoBoolean $AttemptAzureLogin
@@ -400,9 +411,45 @@ try {
         }
 
         if ($doApply) {
-            Invoke-LdoTerraformApply -CodePath $folder -PlanFile $TerraformPlanFileName -SkipApprove -ApplyArgs $TerraformApplyExtraArgs
+            # Lock-dance: take any management lock off the plan's resource groups so the apply is not
+            # blocked, then restore exactly what was removed in the finally. The saved plan is applied
+            # without a refresh, so the removed-then-restored lock is never seen as drift.
+            $capturedLocks = @{ }
+            if ($doLockDance) {
+                $lockPlanJson = Convert-LdoTerraformPlanToJson -CodePath $folder -PlanFile $TerraformPlanFileName -PassThru
+                foreach ($rg in Get-LdoResourceGroupNamesFromPlan -PlanJsonPath $lockPlanJson) {
+                    $locks = @(Get-LdoResourceGroupLock -ResourceGroup $rg)
+                    if ($locks.Count -gt 0) {
+                        $capturedLocks[$rg] = $locks
+                        foreach ($lock in $locks) { Remove-LdoResourceGroupLock -ResourceGroup $rg -LockName $lock.Name }
+                    }
+                }
+            }
+            try {
+                Invoke-LdoTerraformApply -CodePath $folder -PlanFile $TerraformPlanFileName -SkipApprove -ApplyArgs $TerraformApplyExtraArgs
+            }
+            finally {
+                foreach ($rg in $capturedLocks.Keys) {
+                    foreach ($lock in $capturedLocks[$rg]) {
+                        try {
+                            Add-LdoResourceGroupLock -ResourceGroup $rg -LockName $lock.Name -LockLevel $lock.Level -Notes $lock.Notes
+                        }
+                        catch {
+                            Write-LdoLog -Level WARN -Message "Failed to restore management lock '$($lock.Name)' on '$rg': $($_.Exception.Message)" -InvocationName $invocation
+                        }
+                    }
+                }
+            }
         }
         elseif ($doDestroy) {
+            # Lock-dance: take locks off so Terraform can delete the (locked) groups. Nothing to
+            # restore, the groups are being destroyed.
+            if ($doLockDance) {
+                $lockPlanJson = Convert-LdoTerraformPlanToJson -CodePath $folder -PlanFile $TerraformDestroyPlanFileName -PassThru
+                foreach ($rg in Get-LdoResourceGroupNamesFromPlan -PlanJsonPath $lockPlanJson) {
+                    Remove-LdoResourceGroupLock -ResourceGroup $rg
+                }
+            }
             Invoke-LdoTerraformDestroy -CodePath $folder -PlanFile $TerraformDestroyPlanFileName -SkipApprove -DestroyArgs $TerraformDestroyExtraArgs
         }
 
