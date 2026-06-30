@@ -147,6 +147,31 @@ inputs:
     required: false
     default: "[]"
 
+  run-conftest:
+    description: "Run Conftest/OPA policies (for example the Libre DevOps naming convention) against the plan JSON after planning."
+    required: false
+    default: "true"
+  install-conftest:
+    description: "Install conftest."
+    required: false
+    default: "true"
+  conftest-policies-path:
+    description: "Local path to a Rego policy directory. Overrides conftest-policies-repo when set."
+    required: false
+    default: ""
+  conftest-policies-repo:
+    description: "Policies repository to clone when conftest-policies-path is empty (owner/repo or a git URL)."
+    required: false
+    default: "libre-devops/custom-policies"
+  conftest-policies-ref:
+    description: "Branch or tag of the policies repository to clone."
+    required: false
+    default: "main"
+  conftest-fail-on-warn:
+    description: "Fail the run on Conftest warn findings (naming checks are warn). Off by default so they are informational."
+    required: false
+    default: "false"
+
   # ---------- Azure authentication ---------------------------------------
   use-azure-service-connection:
     description: "Authenticate to Azure with azure/login in this action."
@@ -330,6 +355,12 @@ runs:
           -TrivySkipChecks                            '${{ inputs.trivy-skip-checks }}' `
           -TrivySoftFail                              '${{ inputs.trivy-softfail }}' `
           -TrivyExtraArgsJson                         '${{ inputs.trivy-extra-args-json }}' `
+          -RunConftest                                '${{ inputs.run-conftest }}' `
+          -InstallConftest                            '${{ inputs.install-conftest }}' `
+          -ConftestPoliciesPath                       '${{ inputs.conftest-policies-path }}' `
+          -ConftestPoliciesRepo                       '${{ inputs.conftest-policies-repo }}' `
+          -ConftestPoliciesRef                        '${{ inputs.conftest-policies-ref }}' `
+          -ConftestFailOnWarn                         '${{ inputs.conftest-fail-on-warn }}' `
           -InstallAzureCli                            '${{ inputs.install-azure-cli }}' `
           -AttemptAzureLogin                          '${{ inputs.attempt-azure-login }}' `
           -UseAzureClientSecretLogin                  '${{ inputs.use-azure-client-secret-login }}' `

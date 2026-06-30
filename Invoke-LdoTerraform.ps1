@@ -52,6 +52,14 @@ param (
     [string]$TrivySoftFail = "false",
     [string]$TrivyExtraArgsJson = '[]',
 
+    # ---------- Conftest / OPA naming and policy checks (against the plan JSON) ----------
+    [string]$RunConftest = "false",
+    [string]$InstallConftest = "false",
+    [string]$ConftestPoliciesPath = "",
+    [string]$ConftestPoliciesRepo = "libre-devops/custom-policies",
+    [string]$ConftestPoliciesRef = "main",
+    [string]$ConftestFailOnWarn = "false",
+
     [string]$InstallAzureCli = "false",
     [string]$AttemptAzureLogin = "false",
     [string]$UseAzureClientSecretLogin = "false",
@@ -132,6 +140,9 @@ $processedStacks = @()
 $addedStorageIp = $false
 $addedKvIp = $false
 
+# A shallow clone of the Conftest policies, if this run makes one; removed in the finally block.
+$conftestTempClone = $null
+
 try {
     # --- Parse JSON array inputs ----------------------------------------------------------
     $TerraformStackToRun = $TerraformStackToRunJson | ConvertFrom-Json
@@ -169,6 +180,10 @@ try {
     $installTrivy = ConvertTo-LdoBoolean $InstallTrivy
     $trivySoftFail = ConvertTo-LdoBoolean $TrivySoftFail
 
+    $doConftest = ConvertTo-LdoBoolean $RunConftest
+    $installConftest = ConvertTo-LdoBoolean $InstallConftest
+    $conftestFailOnWarn = ConvertTo-LdoBoolean $ConftestFailOnWarn
+
     $installAzureCli = ConvertTo-LdoBoolean $InstallAzureCli
     $attemptLogin = ConvertTo-LdoBoolean $AttemptAzureLogin
     $useClientSecret = ConvertTo-LdoBoolean $UseAzureClientSecretLogin
@@ -205,7 +220,32 @@ try {
 
     if ($installTfLint -and $doTfLint) { Install-LdoTfLint }
     if ($installTrivy -and $doTrivy) { Install-LdoTrivy }
+    if ($installConftest -and $doConftest) { Install-LdoConftest }
     if ($installAzureCli -and $attemptLogin) { Install-LdoAzureCli }
+
+    # --- Resolve the Conftest policy directory once (a local path, else a shallow clone) ------
+    # The policies (libre-devops/custom-policies) are checked against the plan JSON after planning.
+    # A caller-supplied path wins; otherwise the public policies repo is cloned at the given ref.
+    $conftestPolicyDir = $null
+    if ($doConftest) {
+        if ($ConftestPoliciesPath -and (Test-Path $ConftestPoliciesPath)) {
+            $conftestPolicyDir = (Resolve-Path $ConftestPoliciesPath).Path
+            Write-LdoLog -Level INFO -Message "Using Conftest policies at $conftestPolicyDir" -InvocationName $invocation
+        }
+        elseif ($ConftestPoliciesRepo) {
+            $conftestTempClone = Join-Path ([System.IO.Path]::GetTempPath()) ("ldo-conftest-policies-" + [guid]::NewGuid())
+            $repoUrl = if ($ConftestPoliciesRepo -match '^https?://|\.git$') { $ConftestPoliciesRepo } else { "https://github.com/$ConftestPoliciesRepo.git" }
+            Write-LdoLog -Level INFO -Message "Cloning Conftest policies $ConftestPoliciesRepo@$ConftestPoliciesRef" -InvocationName $invocation
+            & git clone --depth 1 --branch $ConftestPoliciesRef $repoUrl $conftestTempClone
+            Assert-LdoLastExitCode -Operation "clone conftest policies $ConftestPoliciesRepo@$ConftestPoliciesRef"
+            $conftestPolicyDir = Join-Path $conftestTempClone 'policies'
+        }
+
+        if (-not ($conftestPolicyDir -and (Test-Path $conftestPolicyDir))) {
+            Write-LdoLog -Level WARN -Message "run-conftest is true but no policy directory could be resolved; skipping Conftest." -InvocationName $invocation
+            $doConftest = $false
+        }
+    }
 
     # --- Optional Azure CLI login (the composite action normally handles OIDC login) ------
     if ($attemptLogin) {
@@ -319,6 +359,15 @@ try {
             Invoke-LdoTerraformPlanDestroy -CodePath $folder -PlanFile $TerraformDestroyPlanFileName -PlanArgs $TerraformPlanDestroyExtraArgs
         }
 
+        # Policy-check the plan JSON with Conftest. Naming checks are informational (warn) and do
+        # not fail the run unless conftest-fail-on-warn is set; deny rules always fail.
+        if ($doPlan -and $doConftest) {
+            $planJson = Convert-LdoTerraformPlanToJson -CodePath $folder -PlanFile $TerraformPlanFileName -PassThru
+            $conftestParams = @{ PlanJsonPath = $planJson; PolicyPath = $conftestPolicyDir }
+            if ($conftestFailOnWarn) { $conftestParams.FailOnWarn = $true }
+            Invoke-LdoConftest @conftestParams
+        }
+
         if ($doApply) {
             Invoke-LdoTerraformApply -CodePath $folder -PlanFile $TerraformPlanFileName -SkipApprove -ApplyArgs $TerraformApplyExtraArgs
         }
@@ -369,6 +418,11 @@ finally {
 
     if ($attemptLogin -and $useUserLogin) {
         Disconnect-LdoAzureCli
+    }
+
+    # Remove the shallow policy clone if this run created one.
+    if ($conftestTempClone -and (Test-Path $conftestTempClone)) {
+        Remove-Item $conftestTempClone -Recurse -Force -ErrorAction SilentlyContinue
     }
 
     $env:TF_LOG = $null
