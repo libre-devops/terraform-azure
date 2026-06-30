@@ -279,9 +279,9 @@ inputs:
     required: false
     default: "INFO"
   log-format:
-    description: "Log output format: Json, JsonIndented, or Text."
+    description: "Log output format: Json, JsonIndented, or Text. Defaults to Text for readability; set Json for compact OTEL-style records (better for export/ingestion)."
     required: false
-    default: "Json"
+    default: "Text"
 
 runs:
   using: composite
