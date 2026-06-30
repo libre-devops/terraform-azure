@@ -177,25 +177,25 @@ try {
     $createWorkspace = ConvertTo-LdoBoolean $CreateTerraformWorkspace
 
     $doTfLint = ConvertTo-LdoBoolean $RunTfLint
-    $installTfLint = ConvertTo-LdoBoolean $InstallTfLint
-    $tfLintSoftFail = ConvertTo-LdoBoolean $TfLintSoftFail
+    $doInstallTfLint = ConvertTo-LdoBoolean $InstallTfLint
+    $doTfLintSoftFail = ConvertTo-LdoBoolean $TfLintSoftFail
 
     $doTrivy = ConvertTo-LdoBoolean $RunTrivy
-    $installTrivy = ConvertTo-LdoBoolean $InstallTrivy
-    $trivySoftFail = ConvertTo-LdoBoolean $TrivySoftFail
+    $doInstallTrivy = ConvertTo-LdoBoolean $InstallTrivy
+    $doTrivySoftFail = ConvertTo-LdoBoolean $TrivySoftFail
 
     $doConftest = ConvertTo-LdoBoolean $RunConftest
-    $installConftest = ConvertTo-LdoBoolean $InstallConftest
-    $conftestFailOnWarn = ConvertTo-LdoBoolean $ConftestFailOnWarn
+    $doInstallConftest = ConvertTo-LdoBoolean $InstallConftest
+    $doConftestFailOnWarn = ConvertTo-LdoBoolean $ConftestFailOnWarn
 
-    $installAzureCli = ConvertTo-LdoBoolean $InstallAzureCli
+    $doInstallAzureCli = ConvertTo-LdoBoolean $InstallAzureCli
     $attemptLogin = ConvertTo-LdoBoolean $AttemptAzureLogin
     $useClientSecret = ConvertTo-LdoBoolean $UseAzureClientSecretLogin
     $useOidc = ConvertTo-LdoBoolean $UseAzureOidcLogin
     $useManagedIdentity = ConvertTo-LdoBoolean $UseAzureManagedIdentityLogin
     $useUserLogin = ConvertTo-LdoBoolean $UseAzureUserLogin
 
-    $deletePlanFiles = ConvertTo-LdoBoolean $DeletePlanFiles
+    $doDeletePlanFiles = ConvertTo-LdoBoolean $DeletePlanFiles
     $prettyPrintFindings = ConvertTo-LdoBoolean $EnablePrettyPrintOfFindings
 
     # --- Mutual exclusivity and ordering guards -------------------------------------------
@@ -223,10 +223,10 @@ try {
     }
     Assert-LdoCommand -Name @('terraform')
 
-    if ($installTfLint -and $doTfLint) { Install-LdoTfLint }
-    if ($installTrivy -and $doTrivy) { Install-LdoTrivy }
-    if ($installConftest -and $doConftest) { Install-LdoConftest }
-    if ($installAzureCli -and $attemptLogin) { Install-LdoAzureCli }
+    if ($doInstallTfLint -and $doTfLint) { Install-LdoTfLint }
+    if ($doInstallTrivy -and $doTrivy) { Install-LdoTrivy }
+    if ($doInstallConftest -and $doConftest) { Install-LdoConftest }
+    if ($doInstallAzureCli -and $attemptLogin) { Install-LdoAzureCli }
 
     # --- Resolve the Conftest policy directory once (a local path, else a shallow clone) ------
     # The policies (libre-devops/custom-policies) are checked against the plan JSON after planning.
@@ -344,14 +344,14 @@ try {
         if ($doTfLint) {
             $tfLintParams = @{ CodePath = $folder }
             if ($TfLintConfigFile) { $tfLintParams.ConfigFile = $TfLintConfigFile }
-            if ($tfLintSoftFail) { $tfLintParams.SoftFail = $true }
+            if ($doTfLintSoftFail) { $tfLintParams.SoftFail = $true }
             if ($TfLintExtraArgs.Count -gt 0) { $tfLintParams.ExtraArgs = $TfLintExtraArgs }
             Invoke-LdoTfLint @tfLintParams
         }
         if ($doTrivy) {
             $trivySkip = if ([string]::IsNullOrWhiteSpace($TrivySkipChecks)) { @() } else { $TrivySkipChecks -split ',' | ForEach-Object { $_.Trim() } }
             $trivyParams = @{ CodePath = $folder }
-            if ($trivySoftFail) { $trivyParams.SoftFail = $true }
+            if ($doTrivySoftFail) { $trivyParams.SoftFail = $true }
             if ($trivySkip.Count -gt 0) { $trivyParams.TrivySkipChecks = $trivySkip }
             if ($TrivyExtraArgs.Count -gt 0) { $trivyParams.ExtraArgs = $TrivyExtraArgs }
             Invoke-LdoTrivy @trivyParams
@@ -369,7 +369,7 @@ try {
         if ($doPlan -and $doConftest) {
             $planJson = Convert-LdoTerraformPlanToJson -CodePath $folder -PlanFile $TerraformPlanFileName -PassThru
             $conftestParams = @{ PlanJsonPath = $planJson; PolicyPath = $conftestPolicyDir }
-            if ($conftestFailOnWarn) { $conftestParams.FailOnWarn = $true }
+            if ($doConftestFailOnWarn) { $conftestParams.FailOnWarn = $true }
             Invoke-LdoConftest @conftestParams
         }
 
@@ -414,7 +414,7 @@ finally {
         }
     }
 
-    if ($deletePlanFiles) {
+    if ($doDeletePlanFiles) {
         $patterns = @($TerraformPlanFileName, "$TerraformPlanFileName.json", $TerraformDestroyPlanFileName, "$TerraformDestroyPlanFileName.json")
         foreach ($folder in $processedStacks) {
             foreach ($pattern in $patterns) {
