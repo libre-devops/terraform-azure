@@ -169,6 +169,10 @@ try {
     $doApply = ConvertTo-LdoBoolean $RunTerraformApply
     $doDestroy = ConvertTo-LdoBoolean $RunTerraformDestroy
 
+    # A destroy run tears infrastructure down, so the lint/scan/policy gates are skipped: a
+    # security finding on something being destroyed is not a reason to block the teardown.
+    $isDestroyRun = $doPlanDestroy -or $doDestroy
+
     $createBackendKey = ConvertTo-LdoBoolean $TerraformInitCreateBackendStateFileName
     $backendKeyPrefix = ConvertTo-LdoNull $TerraformInitCreateBackendStateFilePrefix
     $backendKeySuffix = ConvertTo-LdoNull $TerraformInitCreateBackendStateFileSuffix
@@ -338,17 +342,18 @@ try {
             Invoke-LdoTerraformValidate -CodePath $folder
         }
 
-        # Lint and scan before planning, and fail closed unless soft-fail is set. Switches and
-        # array arguments are only added to the splat when set: splatting an empty array binds the
-        # parameter to $null, which then trips ".Count" under Set-StrictMode inside the helper.
-        if ($doTfLint) {
+        # Lint and scan before planning, and fail closed unless soft-fail is set (skipped on a
+        # destroy run). Switches and array arguments are only added to the splat when set: splatting
+        # an empty array binds the parameter to $null, which then trips ".Count" under Set-StrictMode
+        # inside the helper.
+        if ($doTfLint -and -not $isDestroyRun) {
             $tfLintParams = @{ CodePath = $folder }
             if ($TfLintConfigFile) { $tfLintParams.ConfigFile = $TfLintConfigFile }
             if ($doTfLintSoftFail) { $tfLintParams.SoftFail = $true }
             if ($TfLintExtraArgs.Count -gt 0) { $tfLintParams.ExtraArgs = $TfLintExtraArgs }
             Invoke-LdoTfLint @tfLintParams
         }
-        if ($doTrivy) {
+        if ($doTrivy -and -not $isDestroyRun) {
             $trivySkip = if ([string]::IsNullOrWhiteSpace($TrivySkipChecks)) { @() } else { $TrivySkipChecks -split ',' | ForEach-Object { $_.Trim() } }
             $trivyParams = @{ CodePath = $folder }
             if ($doTrivySoftFail) { $trivyParams.SoftFail = $true }
@@ -373,6 +378,13 @@ try {
             Invoke-LdoConftest @conftestParams
         }
 
+        # Re-show the lint/scan/policy findings now, after planning and before any apply, so they
+        # are easy to read out of the verbose logs and reviewed before the change is made. Skipped
+        # on a destroy run, where no gates ran (so there is nothing to summarise).
+        if ($prettyPrintFindings) {
+            Show-LdoFindingsSummary
+        }
+
         if ($doApply) {
             Invoke-LdoTerraformApply -CodePath $folder -PlanFile $TerraformPlanFileName -SkipApprove -ApplyArgs $TerraformApplyExtraArgs
         }
@@ -381,12 +393,6 @@ try {
         }
 
         Write-LdoLog -Level SUCCESS -Message "Stack completed: $folder" -InvocationName $invocation -Data @{ stack = $folder }
-    }
-
-    # The run succeeded (no hard error). Re-show the scan/lint/policy findings in one neat block so
-    # they are not lost in the verbose structured logs above.
-    if ($prettyPrintFindings) {
-        Show-LdoFindingsSummary
     }
 
     Write-LdoLog -Level SUCCESS -Message "terraform-azure run completed for $($processedStacks.Count) stack(s)." -InvocationName $invocation
