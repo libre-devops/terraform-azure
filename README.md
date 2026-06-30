@@ -79,7 +79,9 @@ The full input reference is documented below once the interface settles. Key tog
 Local development and releases use **PowerShell 7+** and **[`just`](https://github.com/casey/just)**
 (`brew install just`, or `uv tool add rust-just` then `uv run just <recipe>`), since the recipes
 wrap the same [LibreDevOpsHelpers](https://www.powershellgallery.com/packages/LibreDevOpsHelpers)
-module the action runs. `just validate` and `just test` run the checks; to release, bump and
+module the action runs. `just update-ldo-pwsh` installs or force-updates that module from PSGallery;
+`just validate` and `just test` run the checks (with `just scan` for Trivy only and `just pwsh-analyze`
+for PSScriptAnalyzer only); to release, bump and
 publish with `just increment-release [patch|minor|major]`, then move the major alias with
 `just force-push-tag v1`.
 

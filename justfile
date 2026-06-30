@@ -15,6 +15,10 @@ tag_prefix := "v"
 default:
     just --list
 
+# Install or force-update LibreDevOpsHelpers (the engine this action wraps) from PSGallery.
+update-ldo-pwsh:
+    if (Get-Module -ListAvailable LibreDevOpsHelpers) { Update-Module LibreDevOpsHelpers -Force; Write-Host 'Updated LibreDevOpsHelpers to the latest from PSGallery.' } else { Install-Module LibreDevOpsHelpers -Scope CurrentUser -Force -AllowClobber; Write-Host 'Installed LibreDevOpsHelpers from PSGallery.' }
+
 # Analyzer, format check, example validate, and the Pester tests.
 validate:
     #!/usr/bin/env pwsh
@@ -32,6 +36,31 @@ validate:
         terraform -chdir=$d init -backend=false -input=false | Out-Null
         terraform -chdir=$d validate
     }
+
+# Trivy config scan over the action's examples. Gates on HIGH,CRITICAL like the action does at run
+# time; standalone so you can scan without a full validate or end-to-end run.
+scan:
+    #!/usr/bin/env pwsh
+    Set-StrictMode -Version Latest
+    $ErrorActionPreference = 'Stop'
+    Import-Module LibreDevOpsHelpers -Force
+    foreach ($path in @('examples/minimal', 'examples/complete')) {
+        Write-Host "== $path =="
+        Invoke-LdoTrivy -CodePath $path
+    }
+
+# Run PSScriptAnalyzer over the engine script using the repo settings. Fails on Error.
+pwsh-analyze:
+    #!/usr/bin/env pwsh
+    Set-StrictMode -Version Latest
+    $ErrorActionPreference = 'Stop'
+    if (-not (Get-Module -ListAvailable PSScriptAnalyzer)) { Install-Module PSScriptAnalyzer -MinimumVersion 1.21.0 -Force -Scope CurrentUser }
+    $results = Invoke-ScriptAnalyzer -Path ./Invoke-LdoTerraform.ps1 -Settings ./PSScriptAnalyzerSettings.psd1
+    if (@($results | Where-Object { $_.Severity -eq 'Error' }).Count -gt 0) {
+        $results | Format-Table -AutoSize | Out-String | Write-Host
+        throw 'PSScriptAnalyzer found errors.'
+    }
+    Write-Host 'PSScriptAnalyzer: clean.'
 
 # Run the Pester tests.
 test:
