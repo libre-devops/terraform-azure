@@ -82,6 +82,7 @@ param (
 
     [string]$DeletePlanFiles = "true",
     [string]$EnablePrettyPrintOfFindings = "true",
+    [string]$ExportGitContext = "true",
     [string]$DebugMode = "false",
     [string]$LogLevel = "INFO",
     [string]$LogFormat = "Json"
@@ -201,6 +202,7 @@ try {
 
     $doDeletePlanFiles = ConvertTo-LdoBoolean $DeletePlanFiles
     $prettyPrintFindings = ConvertTo-LdoBoolean $EnablePrettyPrintOfFindings
+    $doExportGitContext = ConvertTo-LdoBoolean $ExportGitContext
 
     # --- Mutual exclusivity and ordering guards -------------------------------------------
     if (-not $doInit -and ($doPlan -or $doPlanDestroy -or $doApply -or $doDestroy)) {
@@ -217,6 +219,18 @@ try {
     }
     if ($doDestroy -and -not $doPlanDestroy) {
         throw "run-terraform-destroy requires run-terraform-plan-destroy to be true."
+    }
+
+    # --- Export the git context as TF_VAR_* for the tags module --------------------------
+    # Sets TF_VAR_deployed_branch / TF_VAR_deployed_repo from the checkout so a stack root variable
+    # of the same name (forwarded into the tags module) produces DeployedBranch / DeployedRepo tags.
+    if ($doExportGitContext) {
+        try {
+            Export-LdoGitContextToTfVar
+        }
+        catch {
+            Write-LdoLog -Level WARN -Message "Could not export git context: $($_.Exception.Message)" -InvocationName $invocation
+        }
     }
 
     # --- Tooling install ------------------------------------------------------------------

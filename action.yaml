@@ -270,6 +270,10 @@ inputs:
     description: "Print a neat end-of-run summary of the tflint, trivy, and conftest findings (re-shown out of the verbose logs) when the run has no hard errors."
     required: false
     default: "true"
+  export-git-context:
+    description: "Export the checkout's git branch and repo URL as TF_VAR_deployed_branch / TF_VAR_deployed_repo, so a stack root variable forwarded into the tags module produces DeployedBranch / DeployedRepo tags."
+    required: false
+    default: "true"
   debug-mode:
     description: "Enable debug logging (TF_LOG=DEBUG and DEBUG log level)."
     required: false
@@ -379,6 +383,7 @@ runs:
           -FirewallPropagationSeconds                 '${{ inputs.firewall-propagation-seconds }}' `
           -DeletePlanFiles                            '${{ inputs.delete-plan-files }}' `
           -EnablePrettyPrintOfFindings                '${{ inputs.enable-pretty-print-of-findings }}' `
+          -ExportGitContext                           '${{ inputs.export-git-context }}' `
           -DebugMode                                  '${{ inputs.debug-mode }}' `
           -LogLevel                                   '${{ inputs.log-level }}' `
           -LogFormat                                  '${{ inputs.log-format }}'
