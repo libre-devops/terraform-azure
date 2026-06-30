@@ -81,6 +81,7 @@ param (
     [string]$FirewallPropagationSeconds = "30",
 
     [string]$DeletePlanFiles = "true",
+    [string]$EnablePrettyPrintOfFindings = "true",
     [string]$DebugMode = "false",
     [string]$LogLevel = "INFO",
     [string]$LogFormat = "Json"
@@ -120,6 +121,9 @@ if (-not $env:LDO_SERVICE_NAME) { $env:LDO_SERVICE_NAME = 'terraform-azure' }
 Set-LdoLogLevel -Level ($LogLevel.ToUpperInvariant())
 Set-LdoLogFormat -Format $LogFormat
 Set-LdoTraceContext -Generate
+
+# Start with a clean findings store so the end-of-run summary reflects only this run.
+Clear-LdoFinding
 
 $invocation = $MyInvocation.MyCommand.Name
 Write-LdoLog -Level INFO -Message "LibreDevOpsHelpers loaded; starting terraform-azure run." -InvocationName $invocation
@@ -192,6 +196,7 @@ try {
     $useUserLogin = ConvertTo-LdoBoolean $UseAzureUserLogin
 
     $deletePlanFiles = ConvertTo-LdoBoolean $DeletePlanFiles
+    $prettyPrintFindings = ConvertTo-LdoBoolean $EnablePrettyPrintOfFindings
 
     # --- Mutual exclusivity and ordering guards -------------------------------------------
     if (-not $doInit -and ($doPlan -or $doPlanDestroy -or $doApply -or $doDestroy)) {
@@ -376,6 +381,12 @@ try {
         }
 
         Write-LdoLog -Level SUCCESS -Message "Stack completed: $folder" -InvocationName $invocation -Data @{ stack = $folder }
+    }
+
+    # The run succeeded (no hard error). Re-show the scan/lint/policy findings in one neat block so
+    # they are not lost in the verbose structured logs above.
+    if ($prettyPrintFindings) {
+        Show-LdoFindingsSummary
     }
 
     Write-LdoLog -Level SUCCESS -Message "terraform-azure run completed for $($processedStacks.Count) stack(s)." -InvocationName $invocation
