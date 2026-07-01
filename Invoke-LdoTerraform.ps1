@@ -80,6 +80,17 @@ param (
     [string]$FirewallKeyVaultResourceGroup = "",
     [string]$FirewallPropagationSeconds = "30",
 
+    # ---------- Network Security Perimeter dance (open runner access, close after) ----------
+    # When open-nsp-for-runner is true, an inbound access rule for the runner's current public IP is
+    # added to the named perimeter profile before the run and always removed again in the finally
+    # block, so a runner can reach a resource's data plane while it sits inside an Enforced Network
+    # Security Perimeter. Off by default; opt in per run when a target is behind an enforced perimeter.
+    [string]$OpenNspForRunner = "false",
+    [string]$NspResourceGroup = "",
+    [string]$NspName = "",
+    [string]$NspProfileName = "",
+    [string]$NspRuleName = "ldo-runner-allow",
+
     # ---------- Resource group management-lock dance (remove for the run, restore after) ----------
     # When true, after planning the engine finds the resource groups in the plan, captures and removes
     # any management lock on them so the apply/destroy is not blocked, and (on an apply only) restores
@@ -153,6 +164,7 @@ $processedStacks = @()
 # Track whether firewall rules were added so the finally block only removes what it added.
 $addedStorageIp = $false
 $addedKvIp = $false
+$addedNspIp = $false
 
 # A shallow clone of the Conftest policies, if this run makes one; removed in the finally block.
 $conftestTempClone = $null
@@ -322,10 +334,20 @@ try {
         }
     }
 
+    if (ConvertTo-LdoBoolean $OpenNspForRunner) {
+        if ($NspResourceGroup -and $NspName -and $NspProfileName) {
+            Add-LdoNspCurrentIpRule -ResourceGroup $NspResourceGroup -PerimeterName $NspName -ProfileName $NspProfileName -RuleName $NspRuleName
+            $addedNspIp = $true
+        }
+        else {
+            Write-LdoLog -Level WARN -Message "open-nsp-for-runner is true but the perimeter resource group, name, or profile name was not supplied; skipping the NSP step." -InvocationName $invocation
+        }
+    }
+
     # Azure firewall rule changes are not effective immediately. Wait for them to propagate before
     # Terraform touches the backend, or the first data-plane call fails with a 403.
     $propagationSeconds = [int]$FirewallPropagationSeconds
-    if (($addedStorageIp -or $addedKvIp) -and ($propagationSeconds -gt 0)) {
+    if (($addedStorageIp -or $addedKvIp -or $addedNspIp) -and ($propagationSeconds -gt 0)) {
         Write-LdoLog -Level INFO -Message "Waiting ${propagationSeconds}s for firewall rules to propagate." -InvocationName $invocation
         Start-Sleep -Seconds $propagationSeconds
     }
@@ -478,6 +500,14 @@ finally {
         }
         catch {
             Write-LdoLog -Level WARN -Message "Failed to remove the key vault firewall rule: $($_.Exception.Message)" -InvocationName $invocation
+        }
+    }
+    if ($addedNspIp) {
+        try {
+            Remove-LdoNspRule -ResourceGroup $NspResourceGroup -PerimeterName $NspName -ProfileName $NspProfileName -RuleName $NspRuleName
+        }
+        catch {
+            Write-LdoLog -Level WARN -Message "Failed to remove the NSP access rule: $($_.Exception.Message)" -InvocationName $invocation
         }
     }
 

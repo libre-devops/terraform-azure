@@ -261,6 +261,27 @@ inputs:
     required: false
     default: "30"
 
+  open-nsp-for-runner:
+    description: "NSP dance: add an inbound access rule for the runner public IP to the named Network Security Perimeter profile before the run, and always remove it after. Use when a target resource is inside an Enforced perimeter and the runner needs data-plane access. Supply nsp-resource-group, nsp-name, and nsp-profile-name. Off by default."
+    required: false
+    default: "false"
+  nsp-resource-group:
+    description: "Resource group of the network security perimeter to open (required when open-nsp-for-runner is true)."
+    required: false
+    default: ""
+  nsp-name:
+    description: "Name of the network security perimeter to open."
+    required: false
+    default: ""
+  nsp-profile-name:
+    description: "Name of the perimeter profile to add the runner access rule to."
+    required: false
+    default: ""
+  nsp-rule-name:
+    description: "Name of the temporary NSP access rule. Defaults to ldo-runner-allow."
+    required: false
+    default: "ldo-runner-allow"
+
   remove-resource-group-locks-before-tf-run:
     description: "Lock-dance: remove any management lock on the plan's resource groups before an apply/destroy so Terraform is not blocked, and restore the captured locks after an apply (not after a destroy). Mirrors the firewall dance. Off by default; opt in when you use resource group locks."
     required: false
@@ -386,6 +407,11 @@ runs:
           -FirewallKeyVaultName                       '${{ inputs.firewall-key-vault-name }}' `
           -FirewallKeyVaultResourceGroup              '${{ inputs.firewall-key-vault-resource-group }}' `
           -FirewallPropagationSeconds                 '${{ inputs.firewall-propagation-seconds }}' `
+          -OpenNspForRunner                           '${{ inputs.open-nsp-for-runner }}' `
+          -NspResourceGroup                           '${{ inputs.nsp-resource-group }}' `
+          -NspName                                    '${{ inputs.nsp-name }}' `
+          -NspProfileName                             '${{ inputs.nsp-profile-name }}' `
+          -NspRuleName                                '${{ inputs.nsp-rule-name }}' `
           -RemoveResourceGroupLocksBeforeTfRun        '${{ inputs.remove-resource-group-locks-before-tf-run }}' `
           -DeletePlanFiles                            '${{ inputs.delete-plan-files }}' `
           -EnablePrettyPrintOfFindings                '${{ inputs.enable-pretty-print-of-findings }}' `
