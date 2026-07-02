@@ -56,7 +56,7 @@ param (
     [string]$RunConftest = "false",
     [string]$InstallConftest = "false",
     [string]$ConftestPoliciesPath = "",
-    [string]$ConftestPoliciesRepo = "libre-devops/custom-policies",
+    [string]$ConftestPoliciesRepo = "libre-devops/terraform-rego-policies",
     [string]$ConftestPoliciesRef = "main",
     [string]$ConftestFailOnWarn = "false",
 
@@ -270,7 +270,7 @@ try {
     if ($doInstallAzureCli -and $attemptLogin) { Install-LdoAzureCli }
 
     # --- Resolve the Conftest policy directory once (a local path, else a shallow clone) ------
-    # The policies (libre-devops/custom-policies) are checked against the plan JSON after planning.
+    # The policies (libre-devops/terraform-rego-policies) are checked against the plan JSON after planning.
     # A caller-supplied path wins; otherwise the public policies repo is cloned at the given ref.
     $conftestPolicyDir = $null
     if ($doConftest) {

@@ -162,7 +162,7 @@ inputs:
   conftest-policies-repo:
     description: "Policies repository to clone when conftest-policies-path is empty (owner/repo or a git URL)."
     required: false
-    default: "libre-devops/custom-policies"
+    default: "libre-devops/terraform-rego-policies"
   conftest-policies-ref:
     description: "Branch or tag of the policies repository to clone."
     required: false
