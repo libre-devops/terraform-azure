@@ -248,6 +248,10 @@ inputs:
     description: "Resource group of the storage account to allow-list."
     required: false
     default: ""
+  storage-firewall-soft-fail:
+    description: "When the storage account does not exist, log a warning (cannot append the runner IP, skipping) and continue instead of failing; the next run finds it and dances normally. For stacks that create the account themselves. Only absence is softened. Off by default, and leave it off for the remote state account, which must always exist."
+    required: false
+    default: "false"
   firewall-key-vault-name:
     description: "Key vault name to allow-list (required when add-current-ip-to-key-vault-before-tf-run is true)."
     required: false
@@ -256,6 +260,10 @@ inputs:
     description: "Resource group of the key vault to allow-list."
     required: false
     default: ""
+  key-vault-firewall-soft-fail:
+    description: "When the key vault does not exist, log a warning (cannot append the runner IP, skipping) and continue instead of failing; the next run finds it and dances normally. For stacks that create the vault themselves. Soft-deleted vaults get a distinct warning (an apply resurrects them with their old ACLs). Only absence is softened. Off by default."
+    required: false
+    default: "false"
   firewall-propagation-seconds:
     description: "Seconds to wait after opening a firewall before Terraform runs, so the rule has propagated. Set to 0 to skip."
     required: false
@@ -281,6 +289,10 @@ inputs:
     description: "Name of the temporary NSP access rule. Defaults to ldo-runner-allow."
     required: false
     default: "ldo-runner-allow"
+  nsp-soft-fail:
+    description: "When the perimeter does not exist, log a warning (cannot append the runner IP, skipping) and continue instead of failing; the next run finds it and dances normally. For stacks that create the perimeter themselves. Only absence is softened. Off by default."
+    required: false
+    default: "false"
 
   remove-resource-group-locks-before-tf-run:
     description: "Lock-dance: remove any management lock on the plan's resource groups before an apply/destroy so Terraform is not blocked, and restore the captured locks after an apply (not after a destroy). Mirrors the firewall dance. Off by default; opt in when you use resource group locks."
@@ -404,14 +416,17 @@ runs:
           -AddCurrentIpToKeyVaultBeforeTfRun          '${{ inputs.add-current-ip-to-key-vault-before-tf-run }}' `
           -FirewallStorageAccountName                 '${{ inputs.firewall-storage-account-name }}' `
           -FirewallStorageResourceGroup               '${{ inputs.firewall-storage-resource-group }}' `
+          -StorageFirewallSoftFail                    '${{ inputs.storage-firewall-soft-fail }}' `
           -FirewallKeyVaultName                       '${{ inputs.firewall-key-vault-name }}' `
           -FirewallKeyVaultResourceGroup              '${{ inputs.firewall-key-vault-resource-group }}' `
+          -KeyVaultFirewallSoftFail                   '${{ inputs.key-vault-firewall-soft-fail }}' `
           -FirewallPropagationSeconds                 '${{ inputs.firewall-propagation-seconds }}' `
           -OpenNspForRunner                           '${{ inputs.open-nsp-for-runner }}' `
           -NspResourceGroup                           '${{ inputs.nsp-resource-group }}' `
           -NspName                                    '${{ inputs.nsp-name }}' `
           -NspProfileName                             '${{ inputs.nsp-profile-name }}' `
           -NspRuleName                                '${{ inputs.nsp-rule-name }}' `
+          -NspSoftFail                                '${{ inputs.nsp-soft-fail }}' `
           -RemoveResourceGroupLocksBeforeTfRun        '${{ inputs.remove-resource-group-locks-before-tf-run }}' `
           -DeletePlanFiles                            '${{ inputs.delete-plan-files }}' `
           -EnablePrettyPrintOfFindings                '${{ inputs.enable-pretty-print-of-findings }}' `

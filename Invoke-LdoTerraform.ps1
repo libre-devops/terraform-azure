@@ -78,6 +78,8 @@ param (
     [string]$FirewallStorageResourceGroup = "",
     [string]$FirewallKeyVaultName = "",
     [string]$FirewallKeyVaultResourceGroup = "",
+    [string]$StorageFirewallSoftFail = "false",
+    [string]$KeyVaultFirewallSoftFail = "false",
     [string]$FirewallPropagationSeconds = "30",
 
     # ---------- Network Security Perimeter dance (open runner access, close after) ----------
@@ -90,6 +92,7 @@ param (
     [string]$NspName = "",
     [string]$NspProfileName = "",
     [string]$NspRuleName = "ldo-runner-allow",
+    [string]$NspSoftFail = "false",
 
     # ---------- Resource group management-lock dance (remove for the run, restore after) ----------
     # When true, after planning the engine finds the resource groups in the plan, captures and removes
@@ -317,7 +320,7 @@ try {
     # The matching removal is in the finally block, so the rule is always taken away again.
     if (ConvertTo-LdoBoolean $AddCurrentIpToStorageBeforeTfRun) {
         if ($FirewallStorageAccountName -and $FirewallStorageResourceGroup) {
-            Add-LdoStorageCurrentIpRule -ResourceGroup $FirewallStorageResourceGroup -StorageAccountName $FirewallStorageAccountName
+            Add-LdoStorageCurrentIpRule -ResourceGroup $FirewallStorageResourceGroup -StorageAccountName $FirewallStorageAccountName -SoftFail:(ConvertTo-LdoBoolean $StorageFirewallSoftFail)
             $addedStorageIp = $true
         }
         else {
@@ -326,7 +329,7 @@ try {
     }
     if (ConvertTo-LdoBoolean $AddCurrentIpToKeyVaultBeforeTfRun) {
         if ($FirewallKeyVaultName -and $FirewallKeyVaultResourceGroup) {
-            Add-LdoKeyVaultCurrentIpRule -ResourceGroup $FirewallKeyVaultResourceGroup -KeyVaultName $FirewallKeyVaultName
+            Add-LdoKeyVaultCurrentIpRule -ResourceGroup $FirewallKeyVaultResourceGroup -KeyVaultName $FirewallKeyVaultName -SoftFail:(ConvertTo-LdoBoolean $KeyVaultFirewallSoftFail)
             $addedKvIp = $true
         }
         else {
@@ -336,7 +339,7 @@ try {
 
     if (ConvertTo-LdoBoolean $OpenNspForRunner) {
         if ($NspResourceGroup -and $NspName -and $NspProfileName) {
-            Add-LdoNspCurrentIpRule -ResourceGroup $NspResourceGroup -PerimeterName $NspName -ProfileName $NspProfileName -RuleName $NspRuleName
+            Add-LdoNspCurrentIpRule -ResourceGroup $NspResourceGroup -PerimeterName $NspName -ProfileName $NspProfileName -RuleName $NspRuleName -SoftFail:(ConvertTo-LdoBoolean $NspSoftFail)
             $addedNspIp = $true
         }
         else {
@@ -488,7 +491,7 @@ finally {
     # Always remove any firewall rule this run added, even on failure, so nothing is left open.
     if ($addedStorageIp) {
         try {
-            Remove-LdoStorageCurrentIpRule -ResourceGroup $FirewallStorageResourceGroup -StorageAccountName $FirewallStorageAccountName
+            Remove-LdoStorageCurrentIpRule -ResourceGroup $FirewallStorageResourceGroup -StorageAccountName $FirewallStorageAccountName -SoftFail:(ConvertTo-LdoBoolean $StorageFirewallSoftFail)
         }
         catch {
             Write-LdoLog -Level WARN -Message "Failed to remove the storage firewall rule: $($_.Exception.Message)" -InvocationName $invocation
@@ -496,7 +499,7 @@ finally {
     }
     if ($addedKvIp) {
         try {
-            Remove-LdoKeyVaultCurrentIpRule -ResourceGroup $FirewallKeyVaultResourceGroup -KeyVaultName $FirewallKeyVaultName
+            Remove-LdoKeyVaultCurrentIpRule -ResourceGroup $FirewallKeyVaultResourceGroup -KeyVaultName $FirewallKeyVaultName -SoftFail:(ConvertTo-LdoBoolean $KeyVaultFirewallSoftFail)
         }
         catch {
             Write-LdoLog -Level WARN -Message "Failed to remove the key vault firewall rule: $($_.Exception.Message)" -InvocationName $invocation
