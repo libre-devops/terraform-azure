@@ -169,6 +169,12 @@ $addedStorageIp = $false
 $addedKvIp = $false
 $addedNspIp = $false
 
+# Track whether a stack's own apply changes the danced key vault or storage account. When it
+# does, the finally removes only the runner IP rule (-RuleOnly): restoring the pre-run capture
+# would overwrite the network configuration Terraform just wrote.
+$kvChangedByRun = $false
+$storageChangedByRun = $false
+
 # A shallow clone of the Conftest policies, if this run makes one; removed in the finally block.
 $conftestTempClone = $null
 
@@ -436,6 +442,24 @@ try {
         }
 
         if ($doApply) {
+            # Rule-only restore detection: if this stack's plan changes the danced key vault or
+            # storage account, the finally must leave their network configuration to Terraform.
+            if (($addedKvIp -and -not $kvChangedByRun) -or ($addedStorageIp -and -not $storageChangedByRun)) {
+                $dancePlanJson = Convert-LdoTerraformPlanToJson -CodePath $folder -PlanFile $TerraformPlanFileName -PassThru
+                if ($addedKvIp -and -not $kvChangedByRun) {
+                    $kvChangedByRun = Test-LdoTerraformPlanChangesResource -PlanJsonPath $dancePlanJson -ResourceType azurerm_key_vault -ResourceName $FirewallKeyVaultName
+                    if ($kvChangedByRun) {
+                        Write-LdoLog -Level INFO -Message "This run's plan changes $FirewallKeyVaultName; the post-run removal will take off only the runner IP rule and leave the network configuration to Terraform." -InvocationName $invocation
+                    }
+                }
+                if ($addedStorageIp -and -not $storageChangedByRun) {
+                    $storageChangedByRun = Test-LdoTerraformPlanChangesResource -PlanJsonPath $dancePlanJson -ResourceType azurerm_storage_account -ResourceName $FirewallStorageAccountName
+                    if ($storageChangedByRun) {
+                        Write-LdoLog -Level INFO -Message "This run's plan changes $FirewallStorageAccountName; the post-run removal will take off only the runner IP rule and leave the network configuration to Terraform." -InvocationName $invocation
+                    }
+                }
+            }
+
             # Lock-dance: take any management lock off the plan's resource groups so the apply is not
             # blocked, then restore exactly what was removed in the finally. The saved plan is applied
             # without a refresh, so the removed-then-restored lock is never seen as drift.
@@ -491,7 +515,7 @@ finally {
     # Always remove any firewall rule this run added, even on failure, so nothing is left open.
     if ($addedStorageIp) {
         try {
-            Remove-LdoStorageCurrentIpRule -ResourceGroup $FirewallStorageResourceGroup -StorageAccountName $FirewallStorageAccountName -SoftFail:(ConvertTo-LdoBoolean $StorageFirewallSoftFail)
+            Remove-LdoStorageCurrentIpRule -ResourceGroup $FirewallStorageResourceGroup -StorageAccountName $FirewallStorageAccountName -SoftFail:(ConvertTo-LdoBoolean $StorageFirewallSoftFail) -RuleOnly:$storageChangedByRun
         }
         catch {
             Write-LdoLog -Level WARN -Message "Failed to remove the storage firewall rule: $($_.Exception.Message)" -InvocationName $invocation
@@ -499,7 +523,7 @@ finally {
     }
     if ($addedKvIp) {
         try {
-            Remove-LdoKeyVaultCurrentIpRule -ResourceGroup $FirewallKeyVaultResourceGroup -KeyVaultName $FirewallKeyVaultName -SoftFail:(ConvertTo-LdoBoolean $KeyVaultFirewallSoftFail)
+            Remove-LdoKeyVaultCurrentIpRule -ResourceGroup $FirewallKeyVaultResourceGroup -KeyVaultName $FirewallKeyVaultName -SoftFail:(ConvertTo-LdoBoolean $KeyVaultFirewallSoftFail) -RuleOnly:$kvChangedByRun
         }
         catch {
             Write-LdoLog -Level WARN -Message "Failed to remove the key vault firewall rule: $($_.Exception.Message)" -InvocationName $invocation
